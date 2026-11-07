@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Admin – Gita Diya Bati</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0 auto;background:#fff8ec;color:#3a2418;font-family:Georgia,serif;padding:16px 16px 120px;max-width:640px;line-height:1.5}
+h1{color:#6b1d1d;font-size:1.5rem;margin:8px 0}
+h2{color:#6b1d1d;font-size:1.2rem;margin:24px 0 10px}
+.hint{color:#7a6252}
+.c,.p{background:#fff;border:1px solid #f0dcb4;border-radius:14px;padding:14px;margin-bottom:12px}
+label{display:block;font-size:.85rem;color:#7a6252;margin:8px 0 4px}
+input[type=text],input[type=number],input[type=password],input[type=tel]{width:100%;padding:12px;border:1px solid #d9c49a;border-radius:10px;font-size:16px;font-family:inherit;background:#fff;color:#3a2418}
+.r{display:flex;gap:8px;align-items:flex-end}
+.r>div{flex:1}
+.r>.s{flex:0 0 70px}
+.r>.s2{flex:0 0 120px}
+.btn{background:#e8870e;color:#fff;border:0;border-radius:999px;padding:13px 22px;font-size:1rem;font-weight:700;font-family:inherit;cursor:pointer}
+.btn.m{background:#6b1d1d}
+.btn.x{background:#b3261e;padding:9px 16px;font-size:.9rem}
+.btn[disabled]{opacity:.6}
+#bar{position:fixed;left:0;right:0;bottom:0;background:#6b1d1d;color:#ffe6a8;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));display:flex;gap:12px;align-items:center;justify-content:space-between}
+#bar[hidden]{display:none}
+#st{font-size:.9rem;flex:1}
+.chk{display:flex;align-items:center;gap:8px;margin:0;font-size:1rem;color:#3a2418}
+.chk input{width:22px;height:22px}
+.row2{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+a{color:#6b1d1d}
+.err{color:#b3261e}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="bar" hidden><span id="st"></span><button class="btn" id="save">Save &amp; Publish</button></div>
+<script>
+var OWNER="naitikgupta5656-glitch",REPO="Gita-diya-BATI-",FILE="products.json",BRANCH="main";
+var API="https://api.github.com/repos/"+OWNER+"/"+REPO+"/contents/"+FILE;
+var DEFAULT={settings:{whatsapp:"919999999999",address:"Your shop address, City, India"},products:[
+{name:"Brass Diya Set (6 pcs)",price:199,category:"Diya & Batti",emoji:"🪔",desc:"Handcrafted brass diyas for daily puja.",stock:true},
+{name:"Clay Diya Pack (12 pcs)",price:99,category:"Diya & Batti",emoji:"🪔",desc:"Traditional clay diyas, perfect for festivals.",stock:true},
+{name:"Cotton Batti (100 pcs)",price:49,category:"Diya & Batti",emoji:"🕯️",desc:"Soft pure cotton wicks that burn clean.",stock:true},
+{name:"Dhoop Sticks",price:79,category:"Puja Essentials",emoji:"🌿",desc:"Fragrant dhoop for a calm atmosphere.",stock:true},
+{name:"Camphor (Kapoor)",price:69,category:"Puja Essentials",emoji:"✨",desc:"Pure camphor tablets for aarti.",stock:true},
+{name:"Kumkum & Haldi Set",price:59,category:"Puja Essentials",emoji:"🔴",desc:"Auspicious kumkum and haldi pack.",stock:true},
+{name:"Puja Thali Set",price:499,category:"Thali & Idols",emoji:"🍽️",desc:"Complete brass thali with all essentials.",stock:true},
+{name:"Puja Bell (Ghanti)",price:249,category:"Thali & Idols",emoji:"🔔",desc:"Clear-sounding brass bell.",stock:true}]};
+var token=localStorage.getItem("gdb_token")||"",data=null,sha=null,dirty=false;
+var app=document.getElementById("app"),bar=document.getElementById("bar"),st=document.getElementById("st"),saveBtn=document.getElementById("save");
+
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function hdr(){return {"Authorization":"Bearer "+token,"Accept":"application/vnd.github+json"}}
+function toB64(s){var b=new TextEncoder().encode(s),r="";b.forEach(function(x){r+=String.fromCharCode(x)});return btoa(r)}
+function fromB64(s){var r=atob(s.replace(/\s/g,"")),b=Uint8Array.from(r,function(c){return c.charCodeAt(0)});return new TextDecoder().decode(b)}
+function setStatus(m,err){st.textContent=m;st.style.color=err?"#ffb4ab":"#ffe6a8"}
+function markDirty(){dirty=true;setStatus("Unsaved changes")}
+function normalize(){data.settings=data.settings||{};data.products=data.products||[]}
+
+function showToken(msg){
+  bar.hidden=true;
+  app.innerHTML='<h1>🪔 Gita Diya Bati – Admin</h1><p class="hint">First-time setup: paste your secret key (GitHub token) below. It stays only on this phone.</p>'+(msg?'<p class="err">'+msg+'</p>':'')+'<input type="password" id="t" placeholder="github_pat_..."><p><button class="btn" id="tk">Save key</button></p>';
+  document.getElementById("tk").onclick=function(){var v=document.getElementById("t").value.trim();if(!v)return;token=v;localStorage.setItem("gdb_token",v);load()};
+}
+
+function load(){
+  if(!token){showToken();return}
+  app.innerHTML="<p>Loading…</p>";bar.hidden=true;
+  fetch(API+"?ref="+BRANCH+"&t="+Date.now(),{headers:hdr()}).then(function(r){
+    if(r.status===401)throw "AUTH";
+    if(r.status===404){sha=null;data=JSON.parse(JSON.stringify(DEFAULT));return}
+    if(!r.ok)throw "ERR";
+    return r.json().then(function(j){sha=j.sha;data=JSON.parse(fromB64(j.content))});
+  }).then(function(){normalize();dirty=false;render()}).catch(function(e){
+    if(e==="AUTH"){localStorage.removeItem("gdb_token");token="";showToken("That key didn’t work. Please check it and try again.")}
+    else app.innerHTML='<p class="err">Could not load. Please check your internet and refresh.</p>';
+  });
+}
+
+function render(){
+  var cats=[];data.products.forEach(function(p){if(p.category&&cats.indexOf(p.category)<0)cats.push(p.category)});
+  var h='<h1>🪔 Gita Diya Bati – Admin</h1><p class="hint">Change anything below, then tap <b>Save &amp; Publish</b> at the bottom.</p>';
+  h+='<h2>Contact details</h2><div class="c"><label>WhatsApp number (start with 91, no + or spaces)</label><input type="tel" data-s="whatsapp" value="'+esc(data.settings.whatsapp)+'"><label>Shop address</label><input type="text" data-s="address" value="'+esc(data.settings.address)+'"></div>';
+  h+='<h2>Products</h2>';
+  data.products.forEach(function(p,i){
+    h+='<div class="p"><div class="r"><div class="s"><label>Icon</label><input type="text" data-i="'+i+'" data-f="emoji" value="'+esc(p.emoji)+'"></div><div><label>Product name</label><input type="text" data-i="'+i+'" data-f="name" value="'+esc(p.name)+'"></div></div>'+
+    '<div class="r"><div class="s2"><label>Price (₹)</label><input type="number" inputmode="numeric" min="0" data-i="'+i+'" data-f="price" value="'+esc(p.price)+'"></div><div><label>Category</label><input type="text" list="cats" data-i="'+i+'" data-f="category" value="'+esc(p.category)+'"></div></div>'+
+    '<label>Short description</label><input type="text" data-i="'+i+'" data-f="desc" value="'+esc(p.desc)+'">'+
+    '<div class="row2"><label class="chk"><input type="checkbox" data-i="'+i+'" '+(p.stock?"checked":"")+'> In stock</label><button class="btn x" data-del="'+i+'">Remove</button></div></div>';
+  });
+  h+='<button class="btn m" id="add">+ Add new product</button>';
+  h+='<p style="margin-top:28px"><a href="./" target="_blank">View my website</a> · <a href="#" id="out">Log out</a></p><datalist id="cats">'+cats.map(function(c){return '<option value="'+esc(c)+'">'}).join("")+'</datalist>';
+  app.innerHTML=h;bar.hidden=false;setStatus(dirty?"Unsaved changes":"No changes yet");
+}
+
+app.addEventListener("input",function(e){
+  var t=e.target,s=t.getAttribute("data-s"),f=t.getAttribute("data-f"),i=t.getAttribute("data-i");
+  if(s){if(s==="whatsapp"){var c=t.value.replace(/\D/g,"");if(c!==t.value)t.value=c}data.settings[s]=t.value}
+  else if(f){data.products[i][f]=f==="price"?(Number(t.value)||0):t.value}
+  else return;
+  markDirty();
+});
+app.addEventListener("change",function(e){
+  var t=e.target;
+  if(t.type==="checkbox"){data.products[t.getAttribute("data-i")].stock=t.checked;markDirty()}
+});
+app.addEventListener("click",function(e){
+  var t=e.target,d=t.getAttribute("data-del");
+  if(d!==null&&confirm("Remove “"+(data.products[d].name||"this product")+"”?")){data.products.splice(d,1);markDirty();render()}
+  if(t.id==="add"){data.products.push({name:"",price:0,category:"Puja Essentials",emoji:"🪔",desc:"",stock:true});markDirty();render();window.scrollTo(0,document.body.scrollHeight)}
+  if(t.id==="out"){e.preventDefault();localStorage.removeItem("gdb_token");token="";showToken()}
+});
+
+function save(retry){
+  saveBtn.disabled=true;setStatus("Saving…");
+  data.products.forEach(function(p){p.name=String(p.name||"").trim();p.price=Number(p.price)||0});
+  var body={message:"Update from admin panel",content:toB64(JSON.stringify(data,null,2)),branch:BRANCH};
+  if(sha)body.sha=sha;
+  fetch(API,{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify(body)}).then(function(r){
+    if(r.ok)return r.json().then(function(j){sha=j.content.sha;dirty=false;setStatus("✅ Saved! Website updates in 1–2 minutes.");saveBtn.disabled=false});
+    if((r.status===409||r.status===422)&&!retry){
+      return fetch(API+"?ref="+BRANCH+"&t="+Date.now(),{headers:hdr()}).then(function(x){return x.ok?x.json():null}).then(function(j){sha=j?j.sha:null;save(true)});
+    }
+    saveBtn.disabled=false;
+    if(r.status===401)setStatus("Key not accepted. Log out and add a new key.",true);
+    else if(r.status===403||r.status===404)setStatus("No permission. Check the key has Contents: Read and write.",true);
+    else setStatus("Could not save. Please try again.",true);
+  }).catch(function(){saveBtn.disabled=false;setStatus("No internet. Please try again.",true)});
+}
+saveBtn.onclick=function(){save(false)};
+load();
+</script>
+</body>
+</html>
